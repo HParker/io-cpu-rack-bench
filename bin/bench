@@ -1,0 +1,81 @@
+#!/bin/bash
+
+set -e
+set +x
+
+PROCESSES=(
+  1
+  2
+  4
+  16
+  32
+  # 64
+)
+
+THREADS=(
+  1
+  2
+  4
+  16
+  32
+  # 64
+)
+
+# TODO: add zero and smaller increments
+IO_TIME=(
+  0
+  5
+  10
+  15
+  20
+  25
+  30
+)
+
+CPU_TIME=(
+  0
+  5
+  10
+  15
+  20
+  25
+  30
+)
+
+WORKERS=(
+    # 10
+    50
+    # 100
+    # 100
+    # 200
+    # 300
+    # 400
+
+)
+
+for processes in "${PROCESSES[@]}"; do
+    for threads in "${THREADS[@]}"; do
+	puma --silent -t $threads -w $processes config.ru &
+	PUMA_PID=$!
+
+	sleep 5
+
+	# warmup
+	hey -disable-keepalive "http://localhost:9292?io_time=$io_time&cpu_time=$cpu_time"
+
+	for io_time in "${IO_TIME[@]}"; do
+	    for cpu_time in "${CPU_TIME[@]}"; do
+		for workers in "${WORKERS[@]}"; do
+		    echo "puma-io-$io_time-cpu-$cpu_time-p-$processes-t-$threads-w-$workers-report.csv"
+
+		    hey -disable-keepalive -n 1000 -c $workers -o csv "http://localhost:9292?io_time=$io_time&cpu_time=$cpu_time" > out/puma-io-$io_time-cpu-$cpu_time-p-$processes-t-$threads-w-$workers-report.csv
+
+		done
+	    done
+	done
+
+	kill $PUMA_PID || true
+
+	sleep 5
+    done
+done
